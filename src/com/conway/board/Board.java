@@ -8,6 +8,8 @@ import java.awt.image.BufferStrategy;
 
 public class Board implements Runnable{
 
+    boolean[][] secondGrid = new boolean[numberOfPossibleCells][numberOfPossibleCells];
+    public static double timePerTick = 20000000;
     public static boolean editing = true;
     private Display display;
     public String title;
@@ -16,15 +18,12 @@ public class Board implements Runnable{
     private boolean running = false;
     private Thread thread;
 
-    private BufferStrategy bs;
-    private Graphics2D g2d;
-
     public static boolean[][] grid = new boolean[80][80];
     public static final int CELLSIZE = 10;
 
     public static final int numberOfPossibleCells = grid.length;
 
-    // these arguments that the Game class needs are the same ones that the Display class needs
+    // these arguments that the Board class needs are the same ones that the Display class needs
     public Board(String title, int screen_width, int screen_height) {
         this.title = title;
         this.screen_height = screen_height;
@@ -66,86 +65,114 @@ public class Board implements Runnable{
 
     // the rules for the game of life
     private void update() {
-        int cellx = 0, celly = 0;
 
-        while (cellx < numberOfPossibleCells) {
-            while (celly < numberOfPossibleCells) {
-                //underpopulation
-                if (getCellNeighbors(cellx, celly) < 2) {
-                    grid[cellx][celly] = false;
+        for (int y = 0; y < numberOfPossibleCells; y++) {
+            for (int x = 0; x < numberOfPossibleCells; x++) {
+                int aliveNeighbors = getCellNeighbors(x, y);
+
+                if (grid[x][y]) {
+                    //underpopulation
+                    if (aliveNeighbors < 2) {
+                        secondGrid[x][y] = false;
+                    }
+                    //overpopulation
+                    else if (aliveNeighbors > 3) {
+                        secondGrid[x][y] = false;
+                    }
                 }
-
-                //overpopulation
-                if (getCellNeighbors(cellx, celly) > 3) {
-                    grid[cellx][celly] = false;
+                else {
+                    //reproduction
+                    if (aliveNeighbors == 3) {
+                        secondGrid[x][y] = true;
+                    }
                 }
-
-                //reproduction
-                if (getCellNeighbors(cellx, celly) == 3) {
-                    grid[cellx][celly] = true;
-                }
-
-                celly++;
             }
-            celly = 0;
-            cellx++;
         }
+        for (int y = 0; y < numberOfPossibleCells; y++) {
+            for (int x = 0; x < numberOfPossibleCells; x++) {
+                grid[x][y] = secondGrid[x][y];
+            }
+        }
+
     }
 
     // this method draws all the cells to the canvas
     private void render() {
-        bs = display.getCanvas().getBufferStrategy();
+
+        BufferStrategy bs = display.getCanvas().getBufferStrategy();
         if (bs == null) {
             display.getCanvas().createBufferStrategy(3);
             return;
         }
-        g2d = (Graphics2D) bs.getDrawGraphics();
+        Graphics2D g2d = (Graphics2D) bs.getDrawGraphics();
 
         // this clears the canvas
         g2d.clearRect(0, 0, screen_width, screen_height);
 
         // this is where you tell everything u want to draw
-        g2d.setColor(new Color(0xFF666666, true));
+        g2d.setColor(new Color(0xFFAFAFAF, true));
 
-        //this tedious function makes the paintbrish size bigger
-        if (Board.editing && Display.mouseDown) {
+        //this draws a grid
+        if (editing) {
+            for (int i = 0; i < numberOfPossibleCells; i++) {
+                g2d.drawLine(i * CELLSIZE, 0, i * CELLSIZE, CELLSIZE * numberOfPossibleCells);
+            }
+            for (int i = 0; i < numberOfPossibleCells; i++) {
+                g2d.drawLine(0, i * CELLSIZE, CELLSIZE * numberOfPossibleCells, i * CELLSIZE);
+            }
+        }
+
+        //left click for smaller brush
+        if (Board.editing && Display.leftMouseDown) {
             int x = (Display.mouseX - (Display.mouseX % Board.CELLSIZE))/Board.CELLSIZE;
             int y = (Display.mouseY - (Display.mouseY % Board.CELLSIZE))/Board.CELLSIZE;
             if (x < 80 && x > -1 && y < 80 && y > -1) {
-                grid[x][y] = true;
+                secondGrid[x][y] = true;
+            }
+        }
+
+        //right click for bigger brush
+        if (Board.editing && Display.rightMouseDown) {
+            int x = (Display.mouseX - (Display.mouseX % Board.CELLSIZE))/Board.CELLSIZE;
+            int y = (Display.mouseY - (Display.mouseY % Board.CELLSIZE))/Board.CELLSIZE;
+            if (x < 80 && x > -1 && y < 80 && y > -1) {
+                secondGrid[x][y] = true;
                 if (x < 79) {
-                    grid[x+1][y] = true;
+                    secondGrid[x+1][y] = true;
                 }
                 if (x < 79 && y > 0) {
-                    grid[x + 1][y - 1] = true;
+                    secondGrid[x + 1][y - 1] = true;
                 }
                 if (x < 79 && y < 79) {
-                    grid[x + 1][y + 1] = true;
+                    secondGrid[x + 1][y + 1] = true;
                 }
                 if (x > 0 && y > 0) {
-                    grid[x - 1][y - 1] = true;
+                    secondGrid[x - 1][y - 1] = true;
                 }
                 if (x > 0) {
-                    grid[x - 1][y] = true;
+                    secondGrid[x - 1][y] = true;
                 }
                 if (x > 0 && y < 79) {
-                    grid[x - 1][y + 1] = true;
+                    secondGrid[x - 1][y + 1] = true;
                 }
                 if (y < 79) {
-                    grid[x][y + 1] = true;
+                    secondGrid[x][y + 1] = true;
                 }
                 if (y > 0) {
-                    grid[x][y - 1] = true;
+                    secondGrid[x][y - 1] = true;
                 }
             }
         }
+
+        //sets color for living cells
+        g2d.setColor(new Color(0xFF666666, true));
 
         //this method will hopefully draw the cells
         int cellx = 0, celly = 0;
 
         while (cellx < numberOfPossibleCells) {
             while (celly < numberOfPossibleCells) {
-                if (grid[cellx][celly]) {
+                if (secondGrid[cellx][celly]) {
                     g2d.fillRect(cellx * CELLSIZE, celly * CELLSIZE, CELLSIZE, CELLSIZE);
                 }
                 celly++;
@@ -167,7 +194,6 @@ public class Board implements Runnable{
 
         // all of these variables are to maintain delta time, don't worry if you don't understand it
 
-        double timePerTick = 0;
         double delta = 0;
         long now;
         long lastTime = System.nanoTime();
@@ -176,22 +202,21 @@ public class Board implements Runnable{
         // this updates the variables and draws all the cells to the screen
         while (running) {
 
-            if (editing) {
-                timePerTick = 10000000;
+            timePerTick = 20000000;
+            if (!editing) {
+                timePerTick *= 10;
             }
-            else {
-                timePerTick = 200000000;
-            }
+
             now = System.nanoTime();
             delta += (now - lastTime) / timePerTick;
             timer += now - lastTime;
             lastTime = now;
 
             if (delta >= 1) {
+                render();
                 if (!editing) {
                     update();
                 }
-                render();
                 delta--;
             }
 
@@ -261,21 +286,6 @@ public class Board implements Runnable{
             }
         }
         return neighbors;
-    }
-
-    //returns the number of currently living cells
-    public static int numberOfLivingCells() {
-        int livingCells = 0;
-
-        for (boolean[] array : grid) {
-            for (boolean cell : array) {
-                if (cell) {
-                    livingCells++;
-                }
-            }
-        }
-
-        return livingCells;
     }
 
 }
